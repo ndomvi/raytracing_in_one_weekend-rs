@@ -7,10 +7,12 @@ use anyhow::Result;
 use glam::Vec3;
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use std::time::Instant;
 
 type Point = Vec3;
 
 fn main() -> Result<()> {
+    let start_t = Instant::now();
     println!("Started...");
 
     // Image
@@ -51,6 +53,6 @@ fn main() -> Result<()> {
         }
     }
 
-    println!("Done.");
+    println!("Done. Time taken: {}s", start_t.elapsed().as_secs_f32());
     Ok(())
 }
