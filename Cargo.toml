@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.56"
 glam = "0.20.3"
+
+[profile.release]
+codegen-units = 1
+lto = true

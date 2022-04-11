@@ -1,4 +1,6 @@
 mod camera;
+mod hittable;
+mod hittables;
 mod ray;
 
 use crate::camera::*;
