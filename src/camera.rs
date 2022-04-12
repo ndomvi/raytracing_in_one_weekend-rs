@@ -1,3 +1,5 @@
+use rand::prelude::SmallRng;
+
 use crate::hittable::Hittable;
 use crate::ray::Ray;
 use crate::{random_unit_vector, Point};
@@ -47,15 +49,15 @@ impl Camera {
     }
 }
 
-pub fn ray_color(world: &impl Hittable, ray: &Ray, depth: i32) -> Point {
+pub fn ray_color(world: &impl Hittable, ray: &Ray, depth: i32, rng: &mut SmallRng) -> Point {
     if depth <= 0 {
         return Point::ZERO;
     }
 
     match world.hit(ray, 0.001, f32::INFINITY) {
         Some(rec) => {
-            let target = rec.p + rec.normal + random_unit_vector();
-            0.5 * ray_color(world, &Ray::new(rec.p, target - rec.p), depth - 1)
+            let target = rec.p + rec.normal + random_unit_vector(rng);
+            0.5 * ray_color(world, &Ray::new(rec.p, target - rec.p), depth - 1, rng)
         }
         None => {
             let unit_direction = ray.direction.normalize();

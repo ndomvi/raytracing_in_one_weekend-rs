@@ -41,10 +41,6 @@ impl HittableList {
     pub fn add(&mut self, hittable: impl Hittable + 'static) {
         self.list.push(Box::new(hittable));
     }
-
-    pub fn clear(&mut self) {
-        self.list.clear();
-    }
 }
 
 impl Hittable for HittableList {
@@ -52,11 +48,9 @@ impl Hittable for HittableList {
         let mut closest_t = t_max;
         let mut closest_hit = None;
         for obj in &self.list {
-            if let Some(hit_record) = obj.hit(ray, t_min, t_max) {
-                if hit_record.t < closest_t {
-                    closest_t = hit_record.t;
-                    closest_hit = Some(hit_record);
-                }
+            if let Some(hit_record) = obj.hit(ray, t_min, closest_t) {
+                closest_t = hit_record.t;
+                closest_hit = Some(hit_record);
             }
         }
 

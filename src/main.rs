@@ -50,7 +50,7 @@ fn main() -> Result<()> {
                 let v = (j as f32 + rng.gen::<f32>()) / (image_h - 1) as f32;
 
                 let ray = camera.get_ray(u, v);
-                color += ray_color(&world, &ray, max_depth);
+                color += ray_color(&world, &ray, max_depth, &mut rng);
             }
             write_pixel(&mut outfile, &color, samples_per_pixel)?;
         }
@@ -71,23 +71,18 @@ pub fn write_pixel(writer: &mut impl Write, color: &Point, samples_per_pixel: i3
     writeln!(
         writer,
         "{} {} {}",
-        (r.clamp(0.0, 1.0) * 255.0) as i32,
-        (g.clamp(0.0, 1.0) * 255.0) as i32,
-        (b.clamp(0.0, 1.0) * 255.0) as i32
+        (r * 255.0) as i32,
+        (g * 255.0) as i32,
+        (b * 255.0) as i32
     )?;
     Ok(())
 }
 
-fn random_in_unit_sphere() -> Point {
-    let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
-    let distr: Uniform<f32> = Uniform::new(-1.0, 1.0);
+fn random_in_unit_sphere(rng: &mut SmallRng) -> Point {
+    let distr: Uniform<f32> = Uniform::new_inclusive(-1.0, 1.0);
 
     loop {
-        let v = Point::new(
-            distr.sample(&mut rng),
-            distr.sample(&mut rng),
-            distr.sample(&mut rng),
-        );
+        let v = Point::new(distr.sample(rng), distr.sample(rng), distr.sample(rng));
 
         if v.length_squared() < 1.0 {
             return v;
@@ -96,6 +91,6 @@ fn random_in_unit_sphere() -> Point {
 }
 
 #[inline]
-fn random_unit_vector() -> Point {
-    random_in_unit_sphere().normalize()
+fn random_unit_vector(rng: &mut SmallRng) -> Point {
+    random_in_unit_sphere(rng).normalize()
 }
