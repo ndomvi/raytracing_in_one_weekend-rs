@@ -8,6 +8,7 @@ use crate::hittable::HittableList;
 use crate::hittables::sphere::Sphere;
 use anyhow::Result;
 use glam::Vec3;
+use rand::distributions::Uniform;
 use rand::prelude::*;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -27,7 +28,8 @@ fn main() -> Result<()> {
     // Camera and image
     let camera = Camera::new(16.0 / 9.0, 512, 2.0, 1.0);
     let (image_w, image_h) = camera.image_dim;
-    let samples_per_pixel = 50;
+    let samples_per_pixel = 100;
+    let max_depth = 50;
 
     // Scene
     let mut world = HittableList::new();
@@ -46,8 +48,9 @@ fn main() -> Result<()> {
             for _ in 0..samples_per_pixel {
                 let u = (i as f32 + rng.gen::<f32>()) / (image_w - 1) as f32;
                 let v = (j as f32 + rng.gen::<f32>()) / (image_h - 1) as f32;
+
                 let ray = camera.get_ray(u, v);
-                color += ray_color(&world, &ray);
+                color += ray_color(&world, &ray, max_depth);
             }
             write_pixel(&mut outfile, &color, samples_per_pixel)?;
         }
@@ -60,17 +63,39 @@ fn main() -> Result<()> {
 pub fn write_pixel(writer: &mut impl Write, color: &Point, samples_per_pixel: i32) -> Result<()> {
     let [mut r, mut g, mut b] = color.to_array();
 
-    let samples_per_pixel = samples_per_pixel as f32;
-    r /= samples_per_pixel;
-    g /= samples_per_pixel;
-    b /= samples_per_pixel;
+    let scale = 1.0 / samples_per_pixel as f32;
+    r = (scale * r).sqrt();
+    g = (scale * g).sqrt();
+    b = (scale * b).sqrt();
 
     writeln!(
         writer,
         "{} {} {}",
-        (r.clamp(0.0, 0.9999) * 256.0) as i32,
-        (g.clamp(0.0, 0.9999) * 256.0) as i32,
-        (b.clamp(0.0, 0.9999) * 256.0) as i32
+        (r.clamp(0.0, 1.0) * 255.0) as i32,
+        (g.clamp(0.0, 1.0) * 255.0) as i32,
+        (b.clamp(0.0, 1.0) * 255.0) as i32
     )?;
     Ok(())
+}
+
+fn random_in_unit_sphere() -> Point {
+    let mut rng = SmallRng::from_rng(thread_rng()).unwrap();
+    let distr: Uniform<f32> = Uniform::new(-1.0, 1.0);
+
+    loop {
+        let v = Point::new(
+            distr.sample(&mut rng),
+            distr.sample(&mut rng),
+            distr.sample(&mut rng),
+        );
+
+        if v.length_squared() < 1.0 {
+            return v;
+        }
+    }
+}
+
+#[inline]
+fn random_unit_vector() -> Point {
+    random_in_unit_sphere().normalize()
 }

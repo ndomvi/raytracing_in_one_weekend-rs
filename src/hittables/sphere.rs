@@ -1,8 +1,6 @@
 use crate::hittable::{HitRecord, Hittable};
 use crate::ray::Ray;
-use glam::Vec3;
-
-type Point = Vec3;
+use crate::Point;
 
 pub struct Sphere {
     pub center: Point,

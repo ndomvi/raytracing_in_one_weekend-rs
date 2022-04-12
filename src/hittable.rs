@@ -1,7 +1,5 @@
 use crate::ray::Ray;
-use glam::Vec3;
-
-type Point = Vec3;
+use crate::Point;
 
 pub trait Hittable {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;

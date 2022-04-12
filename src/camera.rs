@@ -1,8 +1,6 @@
-use crate::{hittable::Hittable, ray::Ray};
-
-use glam::Vec3;
-
-type Point = Vec3;
+use crate::hittable::Hittable;
+use crate::ray::Ray;
+use crate::{random_unit_vector, Point};
 
 pub struct Camera {
     pub image_dim: (i32, i32),
@@ -49,9 +47,16 @@ impl Camera {
     }
 }
 
-pub fn ray_color(world: &impl Hittable, ray: &Ray) -> Point {
-    match world.hit(ray, 0.0, f32::INFINITY) {
-        Some(rec) => 0.5 * (rec.normal + Point::new(1.0, 1.0, 1.0)),
+pub fn ray_color(world: &impl Hittable, ray: &Ray, depth: i32) -> Point {
+    if depth <= 0 {
+        return Point::ZERO;
+    }
+
+    match world.hit(ray, 0.001, f32::INFINITY) {
+        Some(rec) => {
+            let target = rec.p + rec.normal + random_unit_vector();
+            0.5 * ray_color(world, &Ray::new(rec.p, target - rec.p), depth - 1)
+        }
         None => {
             let unit_direction = ray.direction.normalize();
             let t = 0.5 * (unit_direction.y + 1.0);

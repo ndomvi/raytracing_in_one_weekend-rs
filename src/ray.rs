@@ -1,6 +1,4 @@
-use glam::Vec3;
-
-type Point = Vec3;
+use crate::Point;
 
 pub struct Ray {
     pub origin: Point,
