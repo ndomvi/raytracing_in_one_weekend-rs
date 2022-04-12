@@ -7,7 +7,13 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.56"
-glam = "0.20.3"
+[dependencies.glam]
+version = "0.20.4"
+features = ["debug-glam-assert"]
+
+[dependencies.rand]
+version = "0.8.5"
+features = ["small_rng"]
 
 [profile.release]
 codegen-units = 1
