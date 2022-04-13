@@ -1,15 +1,22 @@
 use crate::hittable::{HitRecord, Hittable};
+use crate::material::Material;
 use crate::ray::Ray;
 use crate::Point;
+use std::rc::Rc;
 
 pub struct Sphere {
     pub center: Point,
     pub radius: f32,
+    pub material: Rc<dyn Material>,
 }
 
 impl Sphere {
-    pub fn new(center: Point, radius: f32) -> Self {
-        Self { center, radius }
+    pub fn new(center: Point, radius: f32, material: Rc<dyn Material>) -> Self {
+        Self {
+            center,
+            radius,
+            material,
+        }
     }
 }
 
@@ -41,6 +48,7 @@ impl Hittable for Sphere {
             (ray.at(root) - self.center) / self.radius,
             root,
             ray,
+            self.material.clone(),
         ))
     }
 }

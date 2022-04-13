@@ -2,7 +2,7 @@ use rand::prelude::SmallRng;
 
 use crate::hittable::Hittable;
 use crate::ray::Ray;
-use crate::{random_unit_vector, Point};
+use crate::Point;
 
 pub struct Camera {
     pub image_dim: (i32, i32),
@@ -54,15 +54,15 @@ pub fn ray_color(world: &impl Hittable, ray: &Ray, depth: i32, rng: &mut SmallRn
         return Point::ZERO;
     }
 
-    match world.hit(ray, 0.001, f32::INFINITY) {
-        Some(rec) => {
-            let target = rec.p + rec.normal + random_unit_vector(rng);
-            0.5 * ray_color(world, &Ray::new(rec.p, target - rec.p), depth - 1, rng)
+    if let Some(rec) = world.hit(ray, 0.001, f32::INFINITY) {
+        if let Some((scattered, attenuation)) = rec.material.scatter(ray, &rec, rng) {
+            attenuation * ray_color(world, &scattered, depth - 1, rng)
+        } else {
+            Point::ZERO
         }
-        None => {
-            let unit_direction = ray.direction.normalize();
-            let t = 0.5 * (unit_direction.y + 1.0);
-            (1.0 - t) * Point::ONE + t * Point::new(0.5, 0.7, 1.0)
-        }
+    } else {
+        let unit_direction = ray.direction.normalize();
+        let t = 0.5 * (unit_direction.y + 1.0);
+        (1.0 - t) * Point::ONE + t * Point::new(0.5, 0.7, 1.0)
     }
 }

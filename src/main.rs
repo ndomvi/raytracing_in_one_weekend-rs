@@ -1,17 +1,21 @@
 mod camera;
 mod hittable;
-mod hittables;
+mod material;
+mod materials;
+mod objects;
 mod ray;
 
 use crate::camera::*;
 use crate::hittable::HittableList;
-use crate::hittables::sphere::Sphere;
+use crate::materials::*;
+use crate::objects::*;
 use anyhow::Result;
 use glam::Vec3;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use std::rc::Rc;
 use std::time::Instant;
 
 type Point = Vec3;
@@ -33,8 +37,16 @@ fn main() -> Result<()> {
 
     // Scene
     let mut world = HittableList::new();
-    world.add(Sphere::new(Point::new(0.0, 0.0, -1.0), 0.5));
-    world.add(Sphere::new(Point::new(0.0, -100.5, -1.0), 100.0));
+    // Materials
+    let ground = Rc::new(Lambertian::new(Point::new(0.8, 0.8, 0.0)));
+    let center = Rc::new(Lambertian::new(Point::new(0.7, 0.3, 0.3)));
+    let left = Rc::new(Metal::new(Point::new(0.8, 0.8, 0.8)));
+    let right = Rc::new(Metal::new(Point::new(0.8, 0.6, 0.2)));
+    // Objects
+    world.add(Sphere::new(Point::new(0.0, -100.5, -1.0), 100.0, ground));
+    world.add(Sphere::new(Point::new(0.0, 0.0, -1.0), 0.5, center));
+    world.add(Sphere::new(Point::new(-1.0, 0.0, -1.0), 0.5, left));
+    world.add(Sphere::new(Point::new(1.0, 0.0, -1.0), 0.5, right));
 
     // Output
     let outfile = File::create("out.ppm")?;
@@ -42,8 +54,8 @@ fn main() -> Result<()> {
 
     // Render
     write!(outfile, "P3\n{image_w} {image_h}\n255\n")?;
-    for j in (0..image_h).rev() {
-        for i in 0..image_w {
+    (0..image_h).rev().try_for_each(|j| -> Result<()> {
+        (0..image_w).try_for_each(|i| -> Result<()> {
             let mut color = Point::new(0.0, 0.0, 0.0);
             for _ in 0..samples_per_pixel {
                 let u = (i as f32 + rng.gen::<f32>()) / (image_w - 1) as f32;
@@ -53,8 +65,10 @@ fn main() -> Result<()> {
                 color += ray_color(&world, &ray, max_depth, &mut rng);
             }
             write_pixel(&mut outfile, &color, samples_per_pixel)?;
-        }
-    }
+            Ok(())
+        })?;
+        Ok(())
+    })?;
 
     println!("Done. Time taken: {}s", start_t.elapsed().as_secs_f32());
     Ok(())
