@@ -7,9 +7,10 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.56"
+rayon = "1.5.2"
 
 [dependencies.glam]
-version = "0.20.4"
+version = "0.20.5"
 features = ["debug-glam-assert"]
 
 [dependencies.rand]
@@ -19,3 +20,4 @@ features = ["small_rng"]
 [profile.release]
 codegen-units = 1
 lto = true
+panic = "abort"

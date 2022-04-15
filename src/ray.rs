@@ -1,4 +1,5 @@
-use crate::{hittable::HitRecord, Point};
+use crate::hittable::HitRecord;
+use crate::Point;
 
 pub struct Ray {
     pub origin: Point,

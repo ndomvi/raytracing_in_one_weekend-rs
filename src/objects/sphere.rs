@@ -2,20 +2,21 @@ use crate::hittable::{HitRecord, Hittable};
 use crate::material::Material;
 use crate::ray::Ray;
 use crate::Point;
-use std::rc::Rc;
+
+use std::sync::Arc;
 
 pub struct Sphere {
     pub center: Point,
     pub radius: f32,
-    pub material: Rc<dyn Material>,
+    pub material: Arc<dyn Material>,
 }
 
 impl Sphere {
-    pub fn new(center: Point, radius: f32, material: Rc<dyn Material>) -> Self {
+    pub fn new(center: Point, radius: f32, material: Arc<dyn Material>) -> Self {
         Self {
             center,
             radius,
-            material,
+            material: material.clone(),
         }
     }
 }

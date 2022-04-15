@@ -1,10 +1,10 @@
-use std::rc::Rc;
-
 use crate::material::Material;
 use crate::ray::Ray;
 use crate::Point;
 
-pub trait Hittable {
+use std::sync::Arc;
+
+pub trait Hittable: Sync {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
 }
 
@@ -14,7 +14,7 @@ pub struct HitRecord {
     pub normal: Point,
     pub t: f32,
     pub front_face: bool,
-    pub material: Rc<dyn Material>,
+    pub material: Arc<dyn Material>,
 }
 
 impl HitRecord {
@@ -23,7 +23,7 @@ impl HitRecord {
         mut outward_normal: Point,
         t: f32,
         ray: &Ray,
-        material: Rc<dyn Material>,
+        material: Arc<dyn Material>,
     ) -> Self {
         let front_face = ray.direction.dot(outward_normal) < 0.0;
         if !front_face {
@@ -58,12 +58,12 @@ impl Hittable for HittableList {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
         let mut closest_t = t_max;
         let mut closest_hit = None;
-        for obj in &self.list {
+        self.list.iter().for_each(|obj| {
             if let Some(hit_record) = obj.hit(ray, t_min, closest_t) {
                 closest_t = hit_record.t;
                 closest_hit = Some(hit_record);
             }
-        }
+        });
 
         closest_hit
     }

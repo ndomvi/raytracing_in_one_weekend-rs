@@ -1,8 +1,7 @@
-use rand::prelude::SmallRng;
-
 use crate::hittable::Hittable;
 use crate::ray::Ray;
 use crate::Point;
+use rand::prelude::SmallRng;
 
 pub struct Camera {
     pub image_dim: (i32, i32),
