@@ -35,11 +35,14 @@ fn main() -> Result<()> {
 
     // Scene
     let mut world = HittableList::new();
+
     // Materials
     let ground = Arc::new(Lambertian::new(Point::new(0.8, 0.8, 0.0)));
-    let center = Arc::new(Lambertian::new(Point::new(0.7, 0.3, 0.3)));
-    let left = Arc::new(Metal::new(Point::new(0.8, 0.8, 0.8)));
-    let right = Arc::new(Metal::new(Point::new(0.8, 0.6, 0.2)));
+    let center = Arc::new(Lambertian::new(Point::new(0.1, 0.2, 0.5)));
+    // let left = Arc::new(Metal::new(Point::new(0.8, 0.8, 0.8), 0.3));
+    let left = Arc::new(Dielectric::new(1.5));
+    let right = Arc::new(Metal::new(Point::new(0.8, 0.6, 0.2), 0.0));
+
     // Objects
     world.add(Sphere::new(Point::new(0.0, -100.5, -1.0), 100.0, ground));
     world.add(Sphere::new(Point::new(0.0, 0.0, -1.0), 0.5, center));
@@ -76,7 +79,7 @@ fn main() -> Result<()> {
                         }
                         color
                     })
-                    .collect::<Vec<Point>>()
+                    .collect()
             },
         )
         .collect::<Vec<Vec<Point>>>();
@@ -88,6 +91,7 @@ fn main() -> Result<()> {
             write_pixel(&mut outfile, pixel_value, samples_per_pixel)
         })?;
 
+    outfile.flush()?;
     println!("Done. Time taken: {}s", start_t.elapsed().as_secs_f32());
     Ok(())
 }
@@ -110,8 +114,9 @@ pub fn write_pixel(writer: &mut impl Write, color: &Point, samples_per_pixel: i3
     Ok(())
 }
 
+#[inline]
 fn random_in_unit_sphere(rng: &mut SmallRng) -> Point {
-    let distr: Uniform<f32> = Uniform::new_inclusive(-1.0, 1.0);
+    let distr = Uniform::new_inclusive(-1.0, 1.0);
 
     loop {
         let v = Point::new(distr.sample(rng), distr.sample(rng), distr.sample(rng));

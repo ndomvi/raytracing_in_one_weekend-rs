@@ -49,6 +49,7 @@ impl HittableList {
         Self { list: Vec::new() }
     }
 
+    #[inline]
     pub fn add(&mut self, hittable: impl Hittable + 'static) {
         self.list.push(Box::new(hittable));
     }
