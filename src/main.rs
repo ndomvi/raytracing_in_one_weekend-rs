@@ -1,4 +1,5 @@
 mod camera;
+mod helpers;
 mod hittable;
 mod material;
 mod materials;
@@ -6,18 +7,20 @@ mod objects;
 mod ray;
 
 use crate::camera::*;
-use crate::hittable::HittableList;
+use crate::helpers::*;
+use crate::hittable::*;
 use crate::materials::*;
 use crate::objects::*;
 
 use anyhow::Result;
 use glam::Vec3A;
+use material::Material;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rayon::prelude::*;
 use std::fs::File;
-use std::io::{BufWriter, Write};
-use std::sync::Arc;
+use std::io::{stdout, BufWriter, Write};
+use std::sync::{atomic::AtomicI32, Arc};
 use std::time::Instant;
 
 type Point = Vec3A;
@@ -27,34 +30,42 @@ fn main() -> Result<()> {
 
     println!("Started...");
 
-    // Camera and image
-    let camera = Camera::new(16.0 / 9.0, 512, 2.0, 1.0);
-    let (image_w, image_h) = camera.image_dim;
+    // Camera
+    let look_from = Point::new(13.0, 2.0, 3.0);
+    let look_at = Point::new(0.0, 0.0, 0.0);
+    let vup = Point::new(0.0, 1.0, 0.0);
+    let focus_dist = 10.0;
+    let aspect_ratio = 3.0 / 2.0;
+    let aperture = 0.1;
+
+    let camera = Camera::new(
+        look_from,
+        look_at,
+        vup,
+        20.0,
+        aperture,
+        focus_dist,
+        aspect_ratio,
+    );
+
+    // Image
+    let image_w = 512;
+    let image_h = (image_w as f32 / aspect_ratio) as i32;
     let samples_per_pixel = 100;
     let max_depth = 50;
 
     // Scene
-    let mut world = HittableList::new();
-
-    // Materials
-    let ground = Arc::new(Lambertian::new(Point::new(0.8, 0.8, 0.0)));
-    let center = Arc::new(Lambertian::new(Point::new(0.1, 0.2, 0.5)));
-    // let left = Arc::new(Metal::new(Point::new(0.8, 0.8, 0.8), 0.3));
-    let left = Arc::new(Dielectric::new(1.5));
-    let right = Arc::new(Metal::new(Point::new(0.8, 0.6, 0.2), 0.0));
-
-    // Objects
-    world.add(Sphere::new(Point::new(0.0, -100.5, -1.0), 100.0, ground));
-    world.add(Sphere::new(Point::new(0.0, 0.0, -1.0), 0.5, center));
-    world.add(Sphere::new(Point::new(-1.0, 0.0, -1.0), 0.5, left));
-    world.add(Sphere::new(Point::new(1.0, 0.0, -1.0), 0.5, right));
+    let world = random_scene();
 
     // Output
     let outfile = File::create("out.ppm")?;
     let mut outfile = BufWriter::new(outfile);
 
     // Render
+    // Write file header
     write!(outfile, "P3\n{image_w} {image_h}\n255\n")?;
+    // Parallel iteration over rows
+    let rows_done = AtomicI32::new(0);
     let pixel_values = (0..image_h)
         .rev()
         .collect::<Vec<i32>>()
@@ -67,14 +78,20 @@ fn main() -> Result<()> {
                 // thread_rng()
             },
             |rng, j| -> Vec<Point> {
+                rows_done.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+                print!(
+                    "\r{}/{image_h}",
+                    rows_done.load(std::sync::atomic::Ordering::Acquire)
+                );
+                stdout().flush().unwrap();
                 (0..image_w)
                     .map(|i| {
-                        let mut color = Point::new(0.0, 0.0, 0.0);
+                        let mut color = Point::ZERO;
                         for _ in 0..samples_per_pixel {
                             let u = (i as f32 + rng.gen::<f32>()) / (image_w - 1) as f32;
                             let v = (j as f32 + rng.gen::<f32>()) / (image_h - 1) as f32;
 
-                            let ray = camera.get_ray(u, v);
+                            let ray = camera.get_ray(u, v, rng);
                             color += ray_color(&world, &ray, max_depth, rng);
                         }
                         color
@@ -84,6 +101,7 @@ fn main() -> Result<()> {
         )
         .collect::<Vec<Vec<Point>>>();
 
+    // Flatten and write rows
     pixel_values
         .iter()
         .flatten()
@@ -114,20 +132,84 @@ pub fn write_pixel(writer: &mut impl Write, color: &Point, samples_per_pixel: i3
     Ok(())
 }
 
-#[inline]
-fn random_in_unit_sphere(rng: &mut SmallRng) -> Point {
-    let distr = Uniform::new_inclusive(-1.0, 1.0);
+#[allow(dead_code)]
+fn fixed_scene() -> HittableList {
+    let mut world = HittableList::new();
+    // Materials
+    let mat_ground = Arc::new(Lambertian::new(Point::new(0.8, 0.8, 0.0)));
+    let mat_center = Arc::new(Lambertian::new(Point::new(0.1, 0.2, 0.5)));
+    // let left = Arc::new(Metal::new(Point::new(0.8, 0.8, 0.8), 0.3));
+    let mat_left = Arc::new(Dielectric::new(1.5));
+    let mat_left_inner = Arc::new(Dielectric::new(1.5));
+    let mat_right = Arc::new(Metal::new(Point::new(0.8, 0.6, 0.2), 0.0));
 
-    loop {
-        let v = Point::new(distr.sample(rng), distr.sample(rng), distr.sample(rng));
+    // Objects
+    let sphere_ground = Sphere::new(Point::new(0.0, -100.5, -1.0), 100.0, mat_ground);
+    let sphere_center = Sphere::new(Point::new(0.0, 0.0, -1.0), 0.5, mat_center);
+    let sphere_left = Sphere::new(Point::new(-1.0, 0.0, -1.0), 0.5, mat_left);
+    let sphere_left_inner = Sphere::new(Point::new(-1.0, 0.0, -1.0), -0.3, mat_left_inner);
+    let sphere_right = Sphere::new(Point::new(1.0, 0.0, -1.0), 0.5, mat_right);
 
-        if v.length_squared() < 1.0 {
-            return v;
-        }
-    }
+    world.add(sphere_ground);
+    world.add(sphere_center);
+    world.add(sphere_left);
+    world.add(sphere_left_inner);
+    world.add(sphere_right);
+
+    world
 }
 
-#[inline]
-fn random_unit_vector(rng: &mut SmallRng) -> Point {
-    random_in_unit_sphere(rng).normalize()
+fn random_scene() -> HittableList {
+    let mut world = HittableList::new();
+
+    let ground_mat = Arc::new(Lambertian::new(Point::splat(0.5)));
+
+    world.add(Sphere::new(
+        Point::new(0.0, -1000.0, 0.0),
+        1000.0,
+        ground_mat,
+    ));
+
+    let mut rng = thread_rng();
+    for i in -11..11 {
+        for j in -11..11 {
+            let center = Point::new(
+                i as f32 + 0.9 * rng.gen::<f32>(),
+                0.2,
+                j as f32 + 0.9 * rng.gen::<f32>(),
+            );
+
+            if (center - Point::new(4.0, 0.2, 0.0)).length() > 0.9 {
+                let rand_mat = rng.gen::<f32>();
+                let mat: Arc<dyn Material>;
+                if rand_mat < 0.85 {
+                    let albedo =
+                        Point::from(rng.gen::<[f32; 3]>()) * Point::from(rng.gen::<[f32; 3]>());
+                    mat = Arc::new(Lambertian::new(albedo));
+                } else if rand_mat < 0.95 {
+                    let dist = Uniform::new_inclusive(0.5, 1.0);
+                    let albedo = Point::new(
+                        dist.sample(&mut rng),
+                        dist.sample(&mut rng),
+                        dist.sample(&mut rng),
+                    );
+                    let fuzz = rng.gen::<f32>();
+                    mat = Arc::new(Metal::new(albedo, fuzz));
+                } else {
+                    mat = Arc::new(Dielectric::new(1.5));
+                }
+
+                world.add(Sphere::new(center, 0.2, mat));
+            }
+        }
+    }
+
+    let mat1 = Arc::new(Dielectric::new(1.5));
+    world.add(Sphere::new(Point::new(0.0, 1.0, 0.0), 1.0, mat1));
+    let mat2 = Arc::new(Lambertian::new(Point::new(0.4, 0.2, 0.1)));
+    world.add(Sphere::new(Point::new(-4.0, 1.0, 0.0), 1.0, mat2));
+    let mat3 = Arc::new(Metal::new(Point::new(0.7, 0.6, 0.5), 0.0));
+    world.add(Sphere::new(Point::new(4.0, 1.0, 0.0), 1.0, mat3));
+
+    world
 }

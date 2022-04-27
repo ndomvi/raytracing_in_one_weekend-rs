@@ -1,49 +1,62 @@
+use crate::helpers::*;
 use crate::hittable::Hittable;
 use crate::ray::Ray;
 use crate::Point;
 use rand::prelude::SmallRng;
 
 pub struct Camera {
-    pub image_dim: (i32, i32),
     origin: Point,
     lower_left_corner: Point,
     horizontal: Point,
     vertical: Point,
+    lens_radius: f32,
+    u: Point,
+    v: Point,
 }
 
 impl Camera {
     pub fn new(
+        look_from: Point,
+        look_at: Point,
+        vup: Point,
+        vfov: f32,
+        aperture: f32,
+        focus_dist: f32,
         aspect_ratio: f32,
-        image_width: i32,
-        viewport_height: f32,
-        focal_length: f32,
     ) -> Self {
-        // Image
-        let image_w = image_width;
-        let image_h = (image_w as f32 / aspect_ratio) as i32;
-
-        // Camera
+        let viewport_height = 2.0 * (vfov.to_radians() / 2.0).tan();
         let viewport_width = viewport_height * aspect_ratio;
 
-        let origin = Point::new(0.0, 0.0, 0.0);
-        let horizontal = Point::new(viewport_width, 0.0, 0.0);
-        let vertical = Point::new(0.0, viewport_height, 0.0);
+        let w = (look_from - look_at).normalize();
+        let u = vup.cross(w).normalize();
+        let v = w.cross(u);
 
-        let lower_left_corner =
-            origin - horizontal / 2.0 - vertical / 2.0 - Point::new(0.0, 0.0, focal_length);
+        let h = focus_dist * viewport_width * u;
+        let v = focus_dist * viewport_height * v;
+
+        let lower_left_corner = look_from - h / 2.0 - v / 2.0 - focus_dist * w;
+        let lens_radius = aperture / 2.0;
+
         Self {
-            image_dim: (image_w, image_h),
-            origin,
+            origin: look_from,
             lower_left_corner,
-            horizontal,
-            vertical,
+            horizontal: h,
+            vertical: v,
+            lens_radius,
+            u,
+            v,
         }
     }
 
-    pub fn get_ray(&self, u: f32, v: f32) -> Ray {
+    pub fn get_ray(&self, s: f32, t: f32, rng: &mut SmallRng) -> Ray {
+        let rand_disk = self.lens_radius * random_in_unit_disk(rng);
+        let offset = self.u * rand_disk.x + self.v * rand_disk.y;
+
         Ray::new(
-            self.origin,
-            self.lower_left_corner + (u * self.horizontal) + (v * self.vertical) - self.origin,
+            self.origin + offset,
+            self.lower_left_corner + (s * self.horizontal) + (t * self.vertical)
+                - self.origin
+                - offset,
         )
     }
 }
