@@ -6,26 +6,24 @@ mod materials;
 mod objects;
 mod ray;
 
-use crate::camera::*;
-use crate::helpers::*;
-use crate::hittable::*;
+use crate::camera::{ray_color, Camera};
+use crate::hittable::HittableList;
+use crate::material::Material;
 use crate::materials::*;
-use crate::objects::*;
+use crate::objects::Sphere;
 
-use anyhow::Result;
 use glam::Vec3A;
-use material::Material;
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rayon::prelude::*;
 use std::fs::File;
 use std::io::{stdout, BufWriter, Write};
-use std::sync::{atomic::AtomicI32, Arc};
+use std::sync::Arc;
 use std::time::Instant;
 
 type Point = Vec3A;
 
-fn main() -> Result<()> {
+fn main() {
     let start_t = Instant::now();
 
     println!("Started...");
@@ -34,6 +32,7 @@ fn main() -> Result<()> {
     let look_from = Point::new(13.0, 2.0, 3.0);
     let look_at = Point::new(0.0, 0.0, 0.0);
     let vup = Point::new(0.0, 1.0, 0.0);
+    let vfov = 20.0;
     let focus_dist = 10.0;
     let aspect_ratio = 3.0 / 2.0;
     let aperture = 0.1;
@@ -42,7 +41,7 @@ fn main() -> Result<()> {
         look_from,
         look_at,
         vup,
-        20.0,
+        vfov,
         aperture,
         focus_dist,
         aspect_ratio,
@@ -58,34 +57,30 @@ fn main() -> Result<()> {
     let world = random_scene();
 
     // Output
-    let outfile = File::create("out.ppm")?;
+    let outfile = File::create("out.ppm").unwrap();
     let mut outfile = BufWriter::new(outfile);
 
     // Render
     // Write file header
-    write!(outfile, "P3\n{image_w} {image_h}\n255\n")?;
+    write!(outfile, "P3\n{image_w} {image_h}\n255\n").unwrap();
     // Parallel iteration over rows
-    let rows_done = AtomicI32::new(0);
-    let pixel_values = (0..image_h)
+    let mut rows_done = 0;
+    (0..image_h)
         .rev()
-        .collect::<Vec<i32>>()
-        .into_par_iter()
-        .map_init(
-            || {
-                // SmallRng is much (~30%) faster than thread_rng() in debug mode, and is slightly faster in release
-                // The "randomness" shouldn't really matter here, so the performance gain is probably worth it
-                SmallRng::from_entropy()
-                // thread_rng()
-            },
-            |rng, j| -> Vec<Point> {
-                rows_done.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
-                print!(
-                    "\r{}/{image_h}",
-                    rows_done.load(std::sync::atomic::Ordering::Acquire)
-                );
-                stdout().flush().unwrap();
-                (0..image_w)
-                    .map(|i| {
+        .fold::<Vec<Point>, _>(Vec::new(), |mut arr, j| {
+            print!("\r{rows_done}/{image_h}");
+            rows_done += 1;
+            stdout().flush().unwrap();
+            (0..image_w)
+                .into_par_iter()
+                .map_init(
+                    || {
+                        // SmallRng is much (~30%) faster than thread_rng() in debug mode, and is slightly faster in release
+                        // The "randomness" shouldn't really matter here, so the performance gain is probably worth it
+                        SmallRng::from_entropy()
+                        // thread_rng()
+                    },
+                    |rng, i: i32| {
                         let mut color = Point::ZERO;
                         for _ in 0..samples_per_pixel {
                             let u = (i as f32 + rng.gen::<f32>()) / (image_w - 1) as f32;
@@ -95,26 +90,19 @@ fn main() -> Result<()> {
                             color += ray_color(&world, &ray, max_depth, rng);
                         }
                         color
-                    })
-                    .collect()
-            },
-        )
-        .collect::<Vec<Vec<Point>>>();
-
-    // Flatten and write rows
-    pixel_values
+                    },
+                )
+                .collect_into_vec(&mut arr);
+            arr
+        })
         .iter()
-        .flatten()
-        .try_for_each(|pixel_value| -> Result<()> {
-            write_pixel(&mut outfile, pixel_value, samples_per_pixel)
-        })?;
+        .for_each(|pixel_value| write_pixel(&mut outfile, pixel_value, samples_per_pixel));
 
-    outfile.flush()?;
-    println!("Done. Time taken: {}s", start_t.elapsed().as_secs_f32());
-    Ok(())
+    outfile.flush().unwrap();
+    println!("\rDone. Time taken: {}s", start_t.elapsed().as_secs_f32());
 }
 
-pub fn write_pixel(writer: &mut impl Write, color: &Point, samples_per_pixel: i32) -> Result<()> {
+pub fn write_pixel(writer: &mut impl Write, color: &Point, samples_per_pixel: i32) {
     let [mut r, mut g, mut b] = color.to_array();
 
     let scale = 1.0 / samples_per_pixel as f32;
@@ -128,8 +116,8 @@ pub fn write_pixel(writer: &mut impl Write, color: &Point, samples_per_pixel: i3
         (r * 255.0) as i32,
         (g * 255.0) as i32,
         (b * 255.0) as i32
-    )?;
-    Ok(())
+    )
+    .unwrap()
 }
 
 #[allow(dead_code)]

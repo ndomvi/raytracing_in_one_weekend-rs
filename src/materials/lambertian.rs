@@ -1,7 +1,8 @@
+use crate::helpers::random_unit_vector;
 use crate::hittable::HitRecord;
 use crate::material::Material;
 use crate::ray::Ray;
-use crate::{random_unit_vector, Point};
+use crate::Point;
 
 use rand::prelude::SmallRng;
 
