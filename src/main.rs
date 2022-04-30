@@ -67,13 +67,13 @@ fn main() {
     let mut rows_done = 0;
     (0..image_h)
         .rev()
-        .fold::<Vec<Point>, _>(Vec::new(), |mut arr, j| {
-            print!("\r{rows_done}/{image_h}");
-            rows_done += 1;
-            stdout().flush().unwrap();
-            (0..image_w)
-                .into_par_iter()
-                .map_init(
+        .fold::<Vec<Point>, _>(
+            Vec::with_capacity((image_w * image_h) as usize),
+            |mut arr, j| {
+                print!("\r{rows_done}/{image_h}");
+                rows_done += 1;
+                stdout().flush().unwrap();
+                arr.par_extend((0..image_w).into_par_iter().map_init(
                     || {
                         // SmallRng is much (~30%) faster than thread_rng() in debug mode, and is slightly faster in release
                         // The "randomness" shouldn't really matter here, so the performance gain is probably worth it
@@ -91,10 +91,10 @@ fn main() {
                         }
                         color
                     },
-                )
-                .collect_into_vec(&mut arr);
-            arr
-        })
+                ));
+                arr
+            },
+        )
         .iter()
         .for_each(|pixel_value| write_pixel(&mut outfile, pixel_value, samples_per_pixel));
 
